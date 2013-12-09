@@ -151,7 +151,8 @@ import time
 from django.utils.http import cookie_date
 from django.utils.hashcompat import md5_constructor
 from django.core.urlresolvers import get_callable
-from django.contrib.sessions.backends.base import randrange
+from random import randrange
+#from django.contrib.sessions.backends.base import randrange
 from django.conf import settings
 
 MAX_NONCE_SEED = 18446744073709551616L     # 2 << 63
@@ -171,6 +172,8 @@ if not hasattr(settings,"PSESSION_SESSION_KEY"):
     settings.PSESSION_SESSION_KEY = "PARANOID_SESSION_DATA"
 if not hasattr(settings,"PSESSION_COOKIE_NAME"):
     settings.PSESSION_COOKIE_NAME = "sessionnonce"
+if not hasattr(settings,"PSESSION_HEADER_HASH_COOKIE_NAME"):
+    settings.PSESSION_HEADER_HASH_SESSION_NAME = "psessionheaderhash"
 if not hasattr(settings,"PSESSION_SECURE_COOKIE_NAME"):
     settings.PSESSION_SECURE_COOKIE_NAME = "sessionid_https"
 if not hasattr(settings,"PSESSION_COOKIE_HTTPONLY"):
@@ -260,9 +263,15 @@ class SessionFingerprint(object):
                 key = request.COOKIES.get(cookie_name,"")
                 if key != self.secure_key:
                     return False
+
+        self.hash = request.session.get(settings.PSESSION_HEADER_HASH_SESSION_NAME, None)
         hash = self.request_hash(request)
-        if hash != self.hash:
-            return False
+        if self.hash is not None:
+            if hash != self.hash:
+                return False
+        else:
+            request.session[settings.PSESSION_HEADER_HASH_SESSION_NAME] = hash
+
         if settings.PSESSION_NONCE_TIMEOUT is not None:
             nonce = request.COOKIES.get(settings.PSESSION_COOKIE_NAME,"")
             if nonce not in self.get_valid_nonces():
@@ -311,7 +320,7 @@ class SessionFingerprint(object):
         if request.session.modified or settings.SESSION_SAVE_EVERY_REQUEST:
             key = request.session.session_key
             self._set_cookie(request,response,settings.SESSION_COOKIE_NAME,key)
-            
+        
     def request_hash(self,request):
         """Create a hash of the given request's fingerprint data.
 
