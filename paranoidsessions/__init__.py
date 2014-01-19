@@ -238,7 +238,6 @@ class SessionFingerprint(object):
     """
 
     def __init__(self,request):
-        self.hash = self.request_hash(request)
         self.nonce_stream = NonceStream()
         now = time.time()
         self.last_nonce_time = 0
@@ -264,13 +263,13 @@ class SessionFingerprint(object):
                 if key != self.secure_key:
                     return False
 
-        self.hash = request.session.get(settings.PSESSION_HEADER_HASH_SESSION_NAME, None)
-        hash = self.request_hash(request)
-        if self.hash is not None:
-            if hash != self.hash:
+        user_req_hash = request.session.get(settings.PSESSION_HEADER_HASH_SESSION_NAME, None)
+        browser_req_hash = self.browser_request_hash(request)
+        if user_req_hash is not None:
+            if browser_req_hash != user_req_hash:
                 return False
         else:
-            request.session[settings.PSESSION_HEADER_HASH_SESSION_NAME] = hash
+            request.session[settings.PSESSION_HEADER_HASH_SESSION_NAME] = browser_req_hash
 
         if settings.PSESSION_NONCE_TIMEOUT is not None:
             nonce = request.COOKIES.get(settings.PSESSION_COOKIE_NAME,"")
@@ -321,17 +320,17 @@ class SessionFingerprint(object):
             key = request.session.session_key
             self._set_cookie(request,response,settings.SESSION_COOKIE_NAME,key)
         
-    def request_hash(self,request):
+    def browser_request_hash(self,request):
         """Create a hash of the given request's fingerprint data.
 
         This hash will contain data that should be the same for every request
         in this session.
         """
-        hash = md5_constructor()
+        browser_req_hash = md5_constructor()
         if settings.PSESSION_CHECK_HEADERS:
             for header in settings.PSESSION_CHECK_HEADERS:
-               hash.update(request.META.get(header,""))
-        return hash.digest()
+               browser_req_hash.update(request.META.get(header,""))
+        return browser_req_hash.digest()
 
     def get_valid_nonces(self):
         """Get a sequence of all currently valid nonces."""
